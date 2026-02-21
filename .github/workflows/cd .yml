@@ -1,14 +1,13 @@
 
 name: Deploy to Server
 
-
 on:
   workflow_run:
     workflows: ["CI Workflow"]
-  types:
-    - completed
-  branches:
-    - master
+    types:
+      - completed
+    branches:
+      - master
  
 
 
