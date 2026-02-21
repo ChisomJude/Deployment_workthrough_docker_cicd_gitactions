@@ -53,7 +53,7 @@ def home():
     </head>
     <body>
         <div class="container">
-            <h1> Demo App Test Server</h1>
+            <h1> Demo App </h1>
             <div class="info">
                 <p class="label">Server Hostname:</p>
                 <p class="value">{hostname}</p>
