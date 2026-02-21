@@ -13,7 +13,7 @@ def home():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Load Balancer Test</title>
+        <title>Load BalancerChanged</title>
         <style>
             body {{
                 font-family: Arial, sans-serif;
