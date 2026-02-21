@@ -1,0 +1,80 @@
+
+name: Deploy to Server
+
+on:
+  workflow_run:
+    workflows: ["CI Workflow"]
+    types:
+      - completed
+    branches:
+      - master
+ 
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+     
+
+    steps:
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY}}" > ~/.ssh/deploy_key.pem
+          chmod 600 ~/.ssh/deploy_key.pem
+          ssh-keyscan -H ${{ secrets.EC2_HOST1  }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST2  }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server 1
+        run: |
+            ssh -T -i ~/.ssh/deploy_key.pem ${{ var.EC2_USER }}@${{ secrets.EC2_HOST2 }} -o StrictHostKeyChecking=no << 'EOF'
+            docker pull ${{ secrets.DOCKER_USERNAME }}/demo-appwithflask:latest
+            docker stop demo-appwithflask || true
+            docker rm demo-appwithflask || true
+            docker run --name demo-appwithflask -d -p 80:80 ${{ secrets.DOCKER_USERNAME }}/demo-appwithflask:latest
+          EOF
+          
+      - name: Health check Server 1
+        run: |
+          # Wait for the container to fully start before checking
+          sleep 5
+          
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST1 }}/health)
+
+          # 200 means the server responded successfully
+          # If not 200, something went wrong starting the container
+          if [ "$STATUS" != "200" ]; then
+            echo "Server 1 health check failed. Status: $STATUS"
+            exit 1
+          fi
+
+          echo "Server 1 is running. Status: $STATUS"
+
+      # Step 4: Deploy the new Docker image on Server 2
+      - name: Deploy to Server 2
+        run: |
+         ssh -T -i ~/.ssh/deploy_key.pem ${{ var.EC2_USER }}@${{ secrets.EC2_HOST2 }} -o StrictHostKeyChecking=no << 'EOF'
+
+            # Pull the latest image from DockerHub onto Server 2
+            docker pull ${{ secrets.DOCKER_USERNAME }}/demo-appwithflask:latest
+
+            # Stop and remove the old container on Server 2
+            docker stop demo-appwithflask || true
+            docker rm demo-appwithflask || true
+
+            # Start a fresh container with the updated image on Server 2
+            docker run --name demo-appwithflask -d -p 80:80 ${{ secrets.DOCKER_USERNAME }}/demo-appwithflask:latest
+
+          EOF
+
+      # Step 5: Verify Server 2 is responding after the new container started
+      - name: Health check Server 2
+        run: |
+          sleep 5
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.EC2_HOST1 }}/health)
+
+          if [ "$STATUS" != "200" ]; then
+            echo "Server 2 health check failed. Status: $STATUS"
+            exit 1
+          fi
+
+          echo "Server 2 is running. Status: $STATUS"
